@@ -1,8 +1,7 @@
 import streamlit as st 
 import pandas as pd 
 from sklearn.ensemble import RandomForestClassifier 
-from sklearn.preprocessing import 
-LabelEncoder
+from sklearn.preprocessing import LabelEncoder
 
 st.set_page_config(page_title="Simple Pot Winner Predictor", layout="centered") st.title("🔮 Predict Next Winning Pot (Based on Last 10 Rounds)")
 
