@@ -1,4 +1,9 @@
-import streamlit as st import pandas as pd import numpy as np from sklearn.ensemble import RandomForestClassifier from sklearn.preprocessing import LabelEncoder
+import streamlit as st 
+import pandas as pd
+import numpy as np 
+from sklearn.ensemble import RandomForestClassifier 
+from sklearn.preprocessing import 
+LabelEncoder
 
 st.set_page_config(page_title="Teen Patti Pot-Based Predictor", layout="centered") st.title("🧠 ML Predictor: Will High, Mid, or Low Pot Win Next?")
 
