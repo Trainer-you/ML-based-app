@@ -1,88 +1,68 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import LabelEncoder
+import streamlit as st 
+import pandas as pd 
+from sklearn.ensemble import RandomForestClassifier 
+from sklearn.preprocessing import 
+LabelEncoder
 
-st.set_page_config(page_title="Teen Patti Pot Predictor", layout="centered")
-st.title("🧠 Predict Winning Pot Type (High / Mid / Low)")
+st.set_page_config(page_title="Simple Pot Winner Predictor", layout="centered") st.title("🔮 Predict Next Winning Pot (Based on Last 10 Rounds)")
 
-st.markdown(
-    "Train this ML model on **30+ rounds** of history and then predict whether the **high**, **mid**, or **low** pot will win in the next round."
-)
+st.markdown("Enter the last 10 rounds of data. The app will learn the pattern and predict the next likely winning pot type (High, Mid, or Low) without knowing current pot values.")
 
-# Initialize session
-if "rounds" not in st.session_state:
-    st.session_state.rounds = []
+if "rounds" not in st.session_state: st.session_state.rounds = []
 
-# === 1. Add Round History ===
-st.subheader("➕ Add Round History")
-with st.form("round_input"):
-    pot_a = st.number_input("Pot A (in thousands)", min_value=0, step=1)
-    pot_b = st.number_input("Pot B (in thousands)", min_value=0, step=1)
-    pot_c = st.number_input("Pot C (in thousands)", min_value=0, step=1)
-    winner = st.selectbox("Winning Chair", ["A", "B", "C"])
-    submitted = st.form_submit_button("Add Round")
+=== 1. Add Round History ===
 
-if submitted:
-    st.session_state.rounds.append({"A": pot_a, "B": pot_b, "C": pot_c, "Winner": winner})
-    st.success(f"✅ Round {len(st.session_state.rounds)} added")
+st.subheader("➕ Add Round History") with st.form("round_input"): pot_a = st.number_input("Pot A", min_value=0, step=1) pot_b = st.number_input("Pot B", min_value=0, step=1) pot_c = st.number_input("Pot C", min_value=0, step=1) winner = st.selectbox("Winning Chair", ["A", "B", "C"]) submitted = st.form_submit_button("Add Round")
 
-# === 2. Show History ===
-if st.session_state.rounds:
-    df = pd.DataFrame(st.session_state.rounds)
-    st.subheader("📜 History (Last 15 Rounds)")
-    st.dataframe(df.tail(15), use_container_width=True)
+if submitted: st.session_state.rounds.append({"A": pot_a, "B": pot_b, "C": pot_c, "Winner": winner}) if len(st.session_state.rounds) > 10: st.session_state.rounds.pop(0)  # Keep only last 10 rounds st.success(f"✅ Round added. Total rounds stored: {len(st.session_state.rounds)}")
 
-    if len(df) >= 30:
-        # Label pot type of winning chair
-        def get_winner_pot_rank(row):
-            pots = {"A": row["A"], "B": row["B"], "C": row["C"]}
-            sorted_pots = sorted(pots.items(), key=lambda x: x[1])
-            rank_map = {
-                sorted_pots[0][0]: "Low",
-                sorted_pots[1][0]: "Mid",
-                sorted_pots[2][0]: "High"
-            }
-            return rank_map[row["Winner"]]
+=== 2. Show History ===
 
-        df["WinnerPotType"] = df.apply(get_winner_pot_rank, axis=1)
+if st.session_state.rounds: df = pd.DataFrame(st.session_state.rounds) st.subheader("📜 Last 10 Rounds") st.dataframe(df, use_container_width=True)
 
-        # Train ML model
-        X = df[["A", "B", "C"]]
-        y = df["WinnerPotType"]
+if len(df) == 10:
+    # Label winner pot type
+    def get_winner_pot_type(row):
+        pots = {"A": row["A"], "B": row["B"], "C": row["C"]}
+        sorted_pots = sorted(pots.items(), key=lambda x: x[1])
+        rank_map = {
+            sorted_pots[0][0]: "Low",
+            sorted_pots[1][0]: "Mid",
+            sorted_pots[2][0]: "High"
+        }
+        return rank_map[row["Winner"]]
+
+    df["WinnerPotType"] = df.apply(get_winner_pot_type, axis=1)
+
+    # Use only WinnerPotType to train a sequence model
+    X = []
+    y = []
+    for i in range(len(df) - 3):
+        seq = df["WinnerPotType"].iloc[i:i+3].tolist()
+        label = df["WinnerPotType"].iloc[i+3]
+        X.append(seq)
+        y.append(label)
+
+    if len(X) > 0:
         le = LabelEncoder()
-        y_encoded = le.fit_transform(y)
-        model = RandomForestClassifier(n_estimators=100, random_state=42)
-        model.fit(X, y_encoded)
+        X_enc = [le.fit_transform(x) for x in X]
+        y_enc = le.transform(y)
 
-        st.success("✅ Model trained with your 30+ rounds of history")
+        model = RandomForestClassifier(n_estimators=50, random_state=42)
+        model.fit(X_enc, y_enc)
 
-        # === 3. Predict for Next Round ===
-        st.subheader("🔮 Predict Winner Pot Type")
-        with st.form("predict_form"):
-            na = st.number_input("Next round: Pot A", min_value=0, step=1, key="na")
-            nb = st.number_input("Next round: Pot B", min_value=0, step=1, key="nb")
-            nc = st.number_input("Next round: Pot C", min_value=0, step=1, key="nc")
-            predict_btn = st.form_submit_button("Predict")
+        # Predict using last 3
+        recent_seq = df["WinnerPotType"].iloc[-3:].tolist()
+        recent_seq_enc = le.transform(recent_seq).reshape(1, -1)
+        pred = model.predict(recent_seq_enc)[0]
+        pred_label = le.inverse_transform([pred])[0]
 
-        if predict_btn:
-            input_data = np.array([[na, nb, nc]])
-            pred_encoded = model.predict(input_data)[0]
-            pred_label = le.inverse_transform([pred_encoded])[0]
-            proba = model.predict_proba(input_data)[0]
-
-            st.subheader(f"🏆 Predicted Pot Type to Win: **{pred_label.upper()}**")
-            st.markdown("### 📊 Confidence:")
-            for i, prob in enumerate(proba):
-                st.markdown(f"- **{le.inverse_transform([i])[0]}** pot: {prob*100:.2f}%")
-
-            # Suggested bet
-            sorted_pots = sorted([(na, "A"), (nb, "B"), (nc, "C")])
-            pot_map = {"Low": sorted_pots[0][1], "Mid": sorted_pots[1][1], "High": sorted_pots[2][1]}
-            best_bet = pot_map[pred_label]
-            st.success(f"🎯 Suggested Bet: Chair **{best_bet}** (it has the predicted {pred_label.upper()} pot)")
+        st.subheader("🔮 Prediction:")
+        st.success(f"The next likely winning pot type is: **{pred_label.upper()}**")
     else:
-        st.warning("⚠️ Add at least 30 rounds to train the model.")
+        st.warning("⚠️ Not enough sequential data to make prediction.")
 else:
-    st.info("👈 Start by adding some rounds of data above.")
+    st.warning("⚠️ Add exactly 10 rounds to enable prediction.")
+
+else: st.info("👈 Add some rounds to begin.")
+
